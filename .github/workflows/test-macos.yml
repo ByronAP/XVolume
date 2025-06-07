@@ -135,25 +135,3 @@ jobs:
       run: timeout 30s dotnet run --project . --configuration Release --no-build || echo "Sample app test completed"
       working-directory: samples/
       continue-on-error: true
-
-  summary:
-    name: macOS Test Summary
-    runs-on: ubuntu-latest
-    if: always()
-    needs: [test-unit, test-integration, test-factory, test-sample]
-    
-    steps:
-    - name: Download all test results
-      uses: actions/download-artifact@v4
-      with:
-        path: test-results
-
-    - name: Check for failures
-      run: |
-        echo "### macOS Test Results Summary" >> $GITHUB_STEP_SUMMARY
-        if grep -r -l "outcome=\"Failed\"" test-results; then
-          echo "🔴 Some macOS tests failed. Check the artifacts for details." >> $GITHUB_STEP_SUMMARY
-          exit 1
-        else
-          echo "✅ All macOS tests passed!" >> $GITHUB_STEP_SUMMARY
-        fi

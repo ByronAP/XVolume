@@ -167,25 +167,3 @@ jobs:
         if (Wait-Job $job -Timeout 30) { Receive-Job $job }
         else { Stop-Job $job; Write-Host "Sample app test timed out" }
         Remove-Job $job
-
-  summary:
-    name: Windows Test Summary
-    runs-on: ubuntu-latest
-    if: always()
-    needs: [test-unit, test-integration, test-factory, test-com-interop, test-sample]
-    
-    steps:
-    - name: Download all test results
-      uses: actions/download-artifact@v4
-      with:
-        path: test-results
-
-    - name: Check for failures
-      run: |
-        echo "### Windows Test Results Summary" >> $GITHUB_STEP_SUMMARY
-        if grep -r -l "outcome=\"Failed\"" test-results; then
-          echo "🔴 Some Windows tests failed. Check the artifacts for details." >> $GITHUB_STEP_SUMMARY
-          exit 1
-        else
-          echo "✅ All Windows tests passed!" >> $GITHUB_STEP_SUMMARY
-        fi
