@@ -1,0 +1,256 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+      - '!.github/workflows/build-release.yml'
+  pull_request:
+    branches:
+      - main
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      release-type:
+        description: 'Release type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - prerelease
+        default: patch
+      prerelease-label:
+        description: 'Prerelease label (beta, alpha, rc)'
+        required: false
+        type: string
+        default: 'beta'
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  PROJECT_PATH: 'src/XVolume.csproj'
+  PACKAGE_OUTPUT_PATH: ./artifacts
+
+jobs:
+  version:
+    name: Determine Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.gitversion.outputs.semVer }}
+      should-release: ${{ steps.check-release.outputs.should-release }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install GitVersion
+      uses: gittools/actions/gitversion/setup@v0
+      with:
+        versionSpec: '5.x'
+
+    - name: Determine Version
+      id: gitversion
+      uses: gittools/actions/gitversion/execute@v0
+      with:
+        useConfigFile: true
+
+    - name: Check if should release
+      id: check-release
+      run: |
+        # Only release on main branch push or merged PR from dev
+        if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+          echo "should-release=true" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.merged }}" == "true" && "${{ github.event.pull_request.head.ref }}" == "dev" ]]; then
+          echo "should-release=true" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          echo "should-release=true" >> $GITHUB_OUTPUT
+        else
+          echo "should-release=false" >> $GITHUB_OUTPUT
+        fi
+
+  build:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
+    needs: version
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Install Linux dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y alsa-utils pulseaudio
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.PROJECT_PATH }}
+
+    - name: Build
+      run: dotnet build ${{ env.PROJECT_PATH }} --configuration Release --no-restore /p:Version=${{ needs.version.outputs.version }}
+
+    - name: Run tests
+      run: dotnet test --configuration Release --no-build --verbosity normal --filter "Category=Unit"
+
+  package:
+    name: Create NuGet Package
+    runs-on: ubuntu-latest
+    needs: [version, build]
+    if: needs.version.outputs.should-release == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Pack
+      run: |
+        dotnet pack ${{ env.PROJECT_PATH }} \
+          --configuration Release \
+          --output ${{ env.PACKAGE_OUTPUT_PATH }} \
+          /p:PackageVersion=${{ needs.version.outputs.version }} \
+          /p:Version=${{ needs.version.outputs.version }}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: nuget-packages
+        path: ${{ env.PACKAGE_OUTPUT_PATH }}/*.nupkg
+
+    - name: Upload symbols
+      uses: actions/upload-artifact@v3
+      with:
+        name: nuget-symbols
+        path: ${{ env.PACKAGE_OUTPUT_PATH }}/*.snupkg
+        if-no-files-found: ignore
+
+  validate-package:
+    name: Validate NuGet Package
+    runs-on: ubuntu-latest
+    needs: [version, package]
+    
+    steps:
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: nuget-packages
+        path: ./packages
+
+    - name: Install NuGet validator
+      run: dotnet tool install --global dotnet-validate
+
+    - name: Validate package
+      run: |
+        for package in ./packages/*.nupkg; do
+          echo "Validating $package"
+          dotnet validate package local "$package"
+        done
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [version, build, package, validate-package]
+    if: needs.version.outputs.should-release == 'true'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: nuget-packages
+        path: ./packages
+
+    - name: Generate release notes
+      id: release-notes
+      run: |
+        VERSION=${{ needs.version.outputs.version }}
+        echo "# Release Notes for v$VERSION" > release-notes.md
+        echo "" >> release-notes.md
+        
+        # Get commits since last tag
+        if git describe --tags --abbrev=0 HEAD^ 2>/dev/null; then
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^)
+          echo "## Changes since $LAST_TAG" >> release-notes.md
+          
+          # Group commits by type
+          echo "### Features" >> release-notes.md
+          git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep="^feat" >> release-notes.md || echo "- No new features" >> release-notes.md
+          
+          echo -e "\n### Bug Fixes" >> release-notes.md
+          git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep="^fix" >> release-notes.md || echo "- No bug fixes" >> release-notes.md
+          
+          echo -e "\n### Other Changes" >> release-notes.md
+          git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep -v "^feat" --grep -v "^fix" >> release-notes.md
+        else
+          echo "## Initial Release" >> release-notes.md
+        fi
+        
+        echo "" >> release-notes.md
+        echo "## Installation" >> release-notes.md
+        echo '```bash' >> release-notes.md
+        echo "dotnet add package XVolume --version $VERSION" >> release-notes.md
+        echo '```' >> release-notes.md
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ needs.version.outputs.version }}
+        name: XVolume v${{ needs.version.outputs.version }}
+        body_path: release-notes.md
+        draft: false
+        prerelease: ${{ contains(needs.version.outputs.version, '-') }}
+        files: |
+          ./packages/*.nupkg
+          ./packages/*.snupkg
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Publish to NuGet.org
+      run: |
+        for package in ./packages/*.nupkg; do
+          echo "Publishing $package to NuGet.org"
+          dotnet nuget push "$package" \
+            --api-key ${{ secrets.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        done
+
+    - name: Publish symbols to NuGet.org
+      run: |
+        for symbols in ./packages/*.snupkg; do
+          if [ -f "$symbols" ]; then
+            echo "Publishing $symbols to NuGet.org"
+            dotnet nuget push "$symbols" \
+              --api-key ${{ secrets.NUGET_API_KEY }} \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          fi
+        done
+      continue-on-error: true
