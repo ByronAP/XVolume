@@ -1,3 +1,6 @@
+# This workflow handles the entire build, versioning, and release process.
+# It is triggered only on a push to the main branch or a manual dispatch.
+
 name: Build and Release
 
 on:
@@ -8,27 +11,12 @@ on:
       - '**.md'
       - '.github/**'
       - '!.github/workflows/build-release.yml'
-  pull_request:
-    branches:
-      - main
-    types: [closed]
+
   workflow_dispatch:
-    inputs:
-      release-type:
-        description: 'Release type'
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
-          - prerelease
-        default: patch
-      prerelease-label:
-        description: 'Prerelease label (beta, alpha, rc)'
-        required: false
-        type: string
-        default: 'beta'
+
+permissions:
+  contents: write
+  packages: write
 
 env:
   DOTNET_VERSION: '9.0.x'
@@ -63,16 +51,8 @@ jobs:
     - name: Check if should release
       id: check-release
       run: |
-        # Only release on main branch push or merged PR from dev
-        if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
-          echo "should-release=true" >> $GITHUB_OUTPUT
-        elif [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.merged }}" == "true" && "${{ github.event.pull_request.head.ref }}" == "dev" ]]; then
-          echo "should-release=true" >> $GITHUB_OUTPUT
-        elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-          echo "should-release=true" >> $GITHUB_OUTPUT
-        else
-          echo "should-release=false" >> $GITHUB_OUTPUT
-        fi
+        # This workflow only runs on valid release triggers, so this is always true.
+        echo "should-release=true" >> $GITHUB_OUTPUT
 
   build:
     name: Build and Test
@@ -132,20 +112,14 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: nuget-packages
-        path: ${{ env.PACKAGE_OUTPUT_PATH }}/*.nupkg
-
-    - name: Upload symbols
-      uses: actions/upload-artifact@v4
-      with:
-        name: nuget-symbols
-        path: ${{ env.PACKAGE_OUTPUT_PATH }}/*.snupkg
-        if-no-files-found: ignore
+        name: nuget-package
+        path: ${{ env.PACKAGE_OUTPUT_PATH }}/*
 
   validate-package:
     name: Validate NuGet Package
     runs-on: ubuntu-latest
-    needs: [version, package]
+    needs: package
+    if: needs.package.outputs.should-release == 'true'
     
     steps:
     - name: Setup .NET
@@ -156,23 +130,19 @@ jobs:
     - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
-        name: nuget-packages
+        name: nuget-package
         path: ./packages
 
     - name: Install NuGet validator
       run: dotnet tool install --global dotnet-validate
 
     - name: Validate package
-      run: |
-        for package in ./packages/*.nupkg; do
-          echo "Validating $package"
-          dotnet validate package local "$package"
-        done
+      run: dotnet validate package local ./packages/*.nupkg
 
   release:
-    name: Create Release
+    name: Create and Publish Release
     runs-on: ubuntu-latest
-    needs: [version, build, package, validate-package]
+    needs: [version, validate-package]
     if: needs.version.outputs.should-release == 'true'
     environment: production
     
@@ -185,7 +155,7 @@ jobs:
     - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
-        name: nuget-packages
+        name: nuget-package
         path: ./packages
 
     - name: Generate release notes
@@ -200,15 +170,15 @@ jobs:
           LAST_TAG=$(git describe --tags --abbrev=0 HEAD^)
           echo "## Changes since $LAST_TAG" >> release-notes.md
           
-          # Group commits by type
-          echo "### Features" >> release-notes.md
-          git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep="^feat" >> release-notes.md || echo "- No new features" >> release-notes.md
+          # Grep for +semver messages to match GitVersion.yml
+          echo "### ✨ Features" >> release-notes.md
+          git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep="\+semver:\s?\(feature\|minor\)" >> release-notes.md || echo "- No new features." >> release-notes.md
           
-          echo -e "\n### Bug Fixes" >> release-notes.md
-          git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep="^fix" >> release-notes.md || echo "- No bug fixes" >> release-notes.md
+          echo -e "\n### 🐛 Bug Fixes" >> release-notes.md
+          git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep="\+semver:\s?\(fix\|patch\)" >> release-notes.md || echo "- No bug fixes." >> release-notes.md
           
-          echo -e "\n### Other Changes" >> release-notes.md
-          git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep -v "^feat" --grep -v "^fix" >> release-notes.md
+          echo -e "\n### 🔨 Other Changes" >> release-notes.md
+          git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep -v "\+semver:\s?\(breaking\|major\|feature\|minor\|fix\|patch\)" >> release-notes.md
         else
           echo "## Initial Release" >> release-notes.md
         fi
@@ -218,7 +188,7 @@ jobs:
         echo '```bash' >> release-notes.md
         echo "dotnet add package XVolume --version $VERSION" >> release-notes.md
         echo '```' >> release-notes.md
-
+        
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
@@ -227,30 +197,12 @@ jobs:
         body_path: release-notes.md
         draft: false
         prerelease: ${{ contains(needs.version.outputs.version, '-') }}
-        files: |
-          ./packages/*.nupkg
-          ./packages/*.snupkg
-        token: ${{ secrets.GITHUB_TOKEN }}
+        files: ./packages/*
 
     - name: Publish to NuGet.org
       run: |
-        for package in ./packages/*.nupkg; do
-          echo "Publishing $package to NuGet.org"
-          dotnet nuget push "$package" \
-            --api-key ${{ secrets.NUGET_API_KEY }} \
-            --source https://api.nuget.org/v3/index.json \
-            --skip-duplicate
-        done
-
-    - name: Publish symbols to NuGet.org
-      run: |
-        for symbols in ./packages/*.snupkg; do
-          if [ -f "$symbols" ]; then
-            echo "Publishing $symbols to NuGet.org"
-            dotnet nuget push "$symbols" \
-              --api-key ${{ secrets.NUGET_API_KEY }} \
-              --source https://api.nuget.org/v3/index.json \
-              --skip-duplicate
-          fi
-        done
-      continue-on-error: true
+        # This single command pushes both the package and its symbols if present.
+        dotnet nuget push "./packages/*.nupkg" \
+          --api-key ${{ secrets.NUGET_API_KEY }} \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate

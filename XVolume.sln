@@ -14,15 +14,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		CONTRIBUTING.md = CONTRIBUTING.md
 		.github\dependabot.yml = .github\dependabot.yml
 		.github\ISSUE_TEMPLATE\feature_request.md = .github\ISSUE_TEMPLATE\feature_request.md
-		.github\workflows\gitversion.yml = .github\workflows\gitversion.yml
+		GitVersion.yml = GitVersion.yml
 		LICENSE = LICENSE
 		.github\pull_request_template.md = .github\pull_request_template.md
 		README.md = README.md
+		.github\workflows\reusable-run-test.yml = .github\workflows\reusable-run-test.yml
 		.github\workflows\smoke-tests.yml = .github\workflows\smoke-tests.yml
 		.github\workflows\test-all-platforms.yml = .github\workflows\test-all-platforms.yml
-		.github\workflows\test-linux.yml = .github\workflows\test-linux.yml
-		.github\workflows\test-macos.yml = .github\workflows\test-macos.yml
-		.github\workflows\test-windows.yml = .github\workflows\test-windows.yml
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XVolume.Tests", "tests\XVolume.Tests.csproj", "{2EBB5F6A-5C7B-E60F-AE34-E5751A5B1D23}"

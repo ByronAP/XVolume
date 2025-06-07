@@ -5,23 +5,92 @@ on:
     branches: [ '**' ]
   pull_request:
     branches: [ dev, main ]
-  workflow_dispatch:
+  workflow_dispatch: # TODO: add inputs here to manually run specific tests
+
+permissions:
+  contents: read
+  actions: read
 
 jobs:
-  test-matrix:
-    name: Test Matrix
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-    - id: set-matrix
-      run: |
-        echo "matrix={\"include\":[{\"os\":\"ubuntu-latest\",\"name\":\"Linux\"},{\"os\":\"windows-latest\",\"name\":\"Windows\"},{\"os\":\"macos-latest\",\"name\":\"macOS\"}]}" >> $GITHUB_OUTPUT
-
   test:
-    needs: test-matrix
     strategy:
-      matrix: ${{ fromJson(needs.test-matrix.outputs.matrix) }}
-    uses: ./.github/workflows/test-${{ matrix.name | lower }}.yml
+      fail-fast: false
+      matrix:
+        include:
+          # === Linux Tests ===
+          - name: linux-unit
+            os: ubuntu-latest
+            filter: 'Category=Unit'
+          - name: linux-factory
+            os: ubuntu-latest
+            filter: 'FullyQualifiedName~VolumeSubsystemFactoryTests'
+            setup: 'sudo apt-get update && sudo apt-get install -y alsa-utils pulseaudio pipewire-pulse && echo "pcm.!default { type null }" > ~/.asoundrc'
+          - name: linux-integration-alsa
+            os: ubuntu-latest
+            filter: 'Category=Integration&Category=Linux'
+            setup: 'sudo apt-get update && sudo apt-get install -y alsa-utils libasound2 && echo "pcm.!default { type null }" > ~/.asoundrc'
+            continue-on-error: true
+          - name: linux-integration-pulse
+            os: ubuntu-latest
+            filter: 'Category=Integration&Category=Linux'
+            setup: 'sudo apt-get update && sudo apt-get install -y pulseaudio-utils && pulseaudio --start --system=false || true'
+            continue-on-error: true
+            
+          # === Windows Tests ===
+          - name: windows-unit
+            os: windows-latest
+            filter: 'Category=Unit'
+          - name: windows-factory
+            os: windows-latest
+            filter: 'FullyQualifiedName~VolumeSubsystemFactoryTests'
+          - name: windows-integration
+            os: windows-latest
+            filter: 'Category=Integration&Category=Windows'
+            continue-on-error: true
+          - name: windows-com-interop
+            os: windows-latest
+            filter: 'FullyQualifiedName~WindowsVolumeSubsystem'
+            continue-on-error: true
+
+          # === macOS Tests ===
+          - name: macos-unit
+            os: macos-latest
+            filter: 'Category=Unit'
+          - name: macos-factory
+            os: macos-latest
+            filter: 'FullyQualifiedName~VolumeSubsystemFactoryTests'
+          - name: macos-integration
+            os: macos-latest
+            filter: 'Category=Integration&Category=MacOS'
+            continue-on-error: true
+
+    uses: ./.github/workflows/reusable-run-test.yml
     with:
+      name: ${{ matrix.name }}
       runs-on: ${{ matrix.os }}
+      test-filter: ${{ matrix.filter }}
+      setup-script: ${{ matrix.setup || '' }}
+      continue-on-error: ${{ matrix.continue-on-error || false }}
+
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    steps:
+      - name: Download all test result artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: test-results
+
+      - name: Summarize test results
+        run: |
+          echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          if grep -r -l "outcome=\"Failed\"" test-results; then
+            echo "🔴 Some tests failed. See details below." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            grep -rh "outcome=\"Failed\"" test-results | sed -e 's/.*testName="\([^"]*\)".*/- ❌ \1/' | sort -u >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "✅ All tests passed across all platforms!" >> $GITHUB_STEP_SUMMARY
+          fi
