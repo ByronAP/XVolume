@@ -1,6 +1,3 @@
-# This is the main CI workflow that runs automatically on pushes and pull requests.
-# It uses a matrix strategy to call the reusable, platform-specific test workflows in parallel.
-
 name: Test All Platforms
 
 on:
@@ -8,38 +5,78 @@ on:
     branches: [ '**' ]
   pull_request:
     branches: [ dev, main ]
+  workflow_dispatch: # TODO: add inputs here to manually run specific tests
 
 permissions:
   contents: read
   actions: read
 
 jobs:
-  # This single job definition will expand into three parallel jobs, one for each entry in the matrix.
   test:
     strategy:
-      # Ensures that if one platform's tests fail, the others will continue to run.
       fail-fast: false
       matrix:
         include:
-          - name: Linux
+          # === Linux Tests ===
+          - name: linux-unit
             os: ubuntu-latest
-          - name: Windows
+            filter: 'Category=Unit'
+          - name: linux-factory
+            os: ubuntu-latest
+            filter: 'FullyQualifiedName~VolumeSubsystemFactoryTests'
+            setup: 'sudo apt-get update && sudo apt-get install -y alsa-utils pulseaudio pipewire-pulse && echo "pcm.!default { type null }" > ~/.asoundrc'
+          - name: linux-integration-alsa
+            os: ubuntu-latest
+            filter: 'Category=Integration&Category=Linux'
+            setup: 'sudo apt-get update && sudo apt-get install -y alsa-utils libasound2 && echo "pcm.!default { type null }" > ~/.asoundrc'
+            continue-on-error: true
+          - name: linux-integration-pulse
+            os: ubuntu-latest
+            filter: 'Category=Integration&Category=Linux'
+            setup: 'sudo apt-get update && sudo apt-get install -y pulseaudio-utils && pulseaudio --start --system=false || true'
+            continue-on-error: true
+            
+          # === Windows Tests ===
+          - name: windows-unit
             os: windows-latest
-          - name: macOS
-            os: macos-latest
+            filter: 'Category=Unit'
+          - name: windows-factory
+            os: windows-latest
+            filter: 'FullyQualifiedName~VolumeSubsystemFactoryTests'
+          - name: windows-integration
+            os: windows-latest
+            filter: 'Category=Integration&Category=Windows'
+            continue-on-error: true
+          - name: windows-com-interop
+            os: windows-latest
+            filter: 'FullyQualifiedName~WindowsVolumeSubsystem'
+            continue-on-error: true
 
-    uses: ./.github/workflows/test-${{ matrix.name | lower }}.yml
+          # === macOS Tests ===
+          - name: macos-unit
+            os: macos-latest
+            filter: 'Category=Unit'
+          - name: macos-factory
+            os: macos-latest
+            filter: 'FullyQualifiedName~VolumeSubsystemFactoryTests'
+          - name: macos-integration
+            os: macos-latest
+            filter: 'Category=Integration&Category=MacOS'
+            continue-on-error: true
+
+    uses: ./.github/workflows/reusable-run-test.yml
     with:
+      name: ${{ matrix.name }}
       runs-on: ${{ matrix.os }}
+      test-filter: ${{ matrix.filter }}
+      setup-script: ${{ matrix.setup || '' }}
+      continue-on-error: ${{ matrix.continue-on-error || false }}
 
   summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    # The 'needs: test' ensures this job waits for the entire matrix to complete.
     needs: test
-    # 'if: always()' ensures this job runs even if some of the test jobs fail.
     if: always()
-
     steps:
       - name: Download all test result artifacts
         uses: actions/download-artifact@v4
@@ -47,18 +84,12 @@ jobs:
           path: test-results
 
       - name: Summarize test results
-        id: summarize
         run: |
           echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
-          
           if grep -r -l "outcome=\"Failed\"" test-results; then
             echo "🔴 Some tests failed. See details below." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            
-            # List all failed tests for a clear report
-            grep -r "outcome=\"Failed\"" test-results | sed -e 's/.*testName="\([^"]*\)".*/- ❌ \1/' >> $GITHUB_STEP_SUMMARY
-            
-            # This will make the summary job itself fail, correctly reporting the overall failure.
+            grep -rh "outcome=\"Failed\"" test-results | sed -e 's/.*testName="\([^"]*\)".*/- ❌ \1/' | sort -u >> $GITHUB_STEP_SUMMARY
             exit 1
           else
             echo "✅ All tests passed across all platforms!" >> $GITHUB_STEP_SUMMARY

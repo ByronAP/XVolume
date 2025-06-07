@@ -1,0 +1,70 @@
+name: Reusable .NET Test Runner
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        description: 'The name of the test run (for logging and artifact naming)'
+        required: true
+        type: string
+      runs-on:
+        description: 'The runner to use for the job'
+        required: true
+        type: string
+      dotnet-version:
+        description: 'The .NET version to install'
+        required: false
+        type: string
+        default: '9.0.x'
+      test-filter:
+        description: 'The filter to pass to dotnet test'
+        required: true
+        type: string
+      setup-script:
+        description: 'An optional script to run for setup (e.g., installing dependencies)'
+        required: false
+        type: string
+      continue-on-error:
+        description: 'Whether the test step should continue on error'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  run-test:
+    name: ${{ inputs.name }}
+    runs-on: ${{ inputs.runs-on }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Run setup script
+        if: ${{ inputs.setup-script != '' }}
+        run: ${{ inputs.setup-script }}
+        shell: bash
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Run Tests
+        run: dotnet test --configuration Release --no-build --filter "${{ inputs.test-filter }}" --logger "trx;LogFileName=${{ inputs.name }}.trx" --results-directory ./TestResults
+        continue-on-error: ${{ inputs.continue-on-error }}
+        
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ inputs.name }}
+          path: TestResults/*.trx
