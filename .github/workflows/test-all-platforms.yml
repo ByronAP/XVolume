@@ -1,3 +1,6 @@
+# This is the main CI workflow that runs automatically on pushes and pull requests.
+# It uses a matrix strategy to call the reusable, platform-specific test workflows in parallel.
+
 name: Test All Platforms
 
 on:
@@ -5,20 +8,24 @@ on:
     branches: [ '**' ]
   pull_request:
     branches: [ dev, main ]
-  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
+  # This single job definition will expand into three parallel jobs, one for each entry in the matrix.
   test:
     strategy:
-      fail-fast: false # Don't cancel other OS tests if one fails
+      # Ensures that if one platform's tests fail, the others will continue to run.
+      fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            name: Linux
-          - os: windows-latest
-            name: Windows
-          - os: macos-latest
-            name: macOS
+          - name: Linux
+            os: ubuntu-latest
+          - name: Windows
+            os: windows-latest
+          - name: macOS
+            os: macos-latest
 
     uses: ./.github/workflows/test-${{ matrix.name | lower }}.yml
     with:
