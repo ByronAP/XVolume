@@ -1,0 +1,49 @@
+assembly-versioning-scheme: MajorMinorPatch
+mode: ContinuousDelivery
+tag-prefix: '[vV]'
+continuous-delivery-fallback-tag: ''
+major-version-bump-message: '\+semver:\s?(breaking|major)'
+minor-version-bump-message: '\+semver:\s?(feature|minor)'
+patch-version-bump-message: '\+semver:\s?(fix|patch)'
+no-bump-message: '\+semver:\s?(none|skip)'
+legacy-semver-padding: 4
+build-metadata-padding: 4
+commits-since-version-source-padding: 4
+
+branches:
+  main:
+    regex: ^main$
+    mode: ContinuousDelivery
+    tag: ''
+    increment: Patch
+    prevent-increment-of-merged-branch-version: true
+    track-merge-target: false
+    source-branches: ['dev']
+    is-mainline: true
+    pre-release-weight: 1000
+
+  dev:
+    regex: ^dev$
+    mode: ContinuousDeployment
+    tag: beta
+    increment: Minor
+    prevent-increment-of-merged-branch-version: false
+    track-merge-target: true
+    source-branches: ['main', 'feature']
+    pre-release-weight: 100
+
+  feature:
+    regex: ^feature?[/-]
+    mode: ContinuousDeployment
+    tag: alpha.{BranchName}
+    increment: Inherit
+    source-branches: ['dev', 'main']
+    pre-release-weight: 30
+
+  pull-request:
+    regex: ^(pull|pull\-requests|pr)[/-]
+    mode: ContinuousDeployment
+    tag: pr.{BranchName}
+    increment: Inherit
+    tag-number-pattern: '[/-](?<number>\d+)[-/]'
+    pre-release-weight: 10

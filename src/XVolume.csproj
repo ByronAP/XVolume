@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<AssemblyName>XVolume</AssemblyName>
+		<RootNamespace>XVolume</RootNamespace>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<Authors>ByronAP</Authors>
+		<Company>ByronAP</Company>
+		<Description>A cross-platform .NET library for controlling system volume on Windows, macOS, and Linux (ALSA/PulseAudio/PipeWire). Lightweight and dependency-free.</Description>
+		<Version>0.1.0</Version>
+		<PackageId>XVolume</PackageId>
+		<PackageTags>volume;cross-platform;audio;coreaudio;alsa;pulseaudio;PipeWire</PackageTags>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageProjectUrl>https://github.com/ByronAP/XVolume</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/ByronAP/XVolume</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<DebugType>embedded</DebugType>
+		<ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+			<_Parameter1>XVolume.Tests</_Parameter1>
+		</AssemblyAttribute>
+	</ItemGroup>
+	
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.5" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+	</ItemGroup>
+</Project>

@@ -1,0 +1,57 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36202.13
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XVolume", "src\XVolume.csproj", "{8602929B-314E-43F0-BB81-CDC81B214E91}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
+	ProjectSection(SolutionItems) = preProject
+		.gitignore = .gitignore
+		.github\ISSUE_TEMPLATE\bug_report.md = .github\ISSUE_TEMPLATE\bug_report.md
+		.github\workflows\build-release.yml = .github\workflows\build-release.yml
+		CODE_OF_CONDUCT.md = CODE_OF_CONDUCT.md
+		CONTRIBUTING.md = CONTRIBUTING.md
+		.github\dependabot.yml = .github\dependabot.yml
+		.github\ISSUE_TEMPLATE\feature_request.md = .github\ISSUE_TEMPLATE\feature_request.md
+		.github\workflows\gitversion.yml = .github\workflows\gitversion.yml
+		LICENSE = LICENSE
+		.github\pull_request_template.md = .github\pull_request_template.md
+		README.md = README.md
+		.github\workflows\smoke-tests.yml = .github\workflows\smoke-tests.yml
+		.github\workflows\test-all-platforms.yml = .github\workflows\test-all-platforms.yml
+		.github\workflows\test-linux.yml = .github\workflows\test-linux.yml
+		.github\workflows\test-macos.yml = .github\workflows\test-macos.yml
+		.github\workflows\test-windows.yml = .github\workflows\test-windows.yml
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XVolume.Tests", "tests\XVolume.Tests.csproj", "{2EBB5F6A-5C7B-E60F-AE34-E5751A5B1D23}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XVolume.Sample", "samples\XVolume.Sample.csproj", "{A17A9B85-748A-4595-B695-6374FAA6C1E3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8602929B-314E-43F0-BB81-CDC81B214E91}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8602929B-314E-43F0-BB81-CDC81B214E91}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8602929B-314E-43F0-BB81-CDC81B214E91}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8602929B-314E-43F0-BB81-CDC81B214E91}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2EBB5F6A-5C7B-E60F-AE34-E5751A5B1D23}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2EBB5F6A-5C7B-E60F-AE34-E5751A5B1D23}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2EBB5F6A-5C7B-E60F-AE34-E5751A5B1D23}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2EBB5F6A-5C7B-E60F-AE34-E5751A5B1D23}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A17A9B85-748A-4595-B695-6374FAA6C1E3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A17A9B85-748A-4595-B695-6374FAA6C1E3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A17A9B85-748A-4595-B695-6374FAA6C1E3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A17A9B85-748A-4595-B695-6374FAA6C1E3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3658084D-5819-4645-A4E3-7F49A8B1378C}
+	EndGlobalSection
+EndGlobal
