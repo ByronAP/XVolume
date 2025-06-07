@@ -24,7 +24,7 @@
 		<Copyright>2025 ByronAP, Allen Byron Penner</Copyright>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<Title>XVolume</Title>
-		<PackageIcon>icon.svg</PackageIcon>
+		<PackageIcon>icon.png</PackageIcon>
 		<EnablePackageValidation>true</EnablePackageValidation>
 	</PropertyGroup>
 
@@ -42,7 +42,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Include="..\assets\icon.svg">
+		<None Include="..\assets\icon.png">
 			<Pack>True</Pack>
 			<PackagePath>\</PackagePath>
 		</None>
