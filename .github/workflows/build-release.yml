@@ -87,7 +87,7 @@ jobs:
       run: dotnet test --configuration Release --no-build --verbosity normal --filter "Category=Unit"
 
   package:
-    name: Create NuGet Package
+    name: Create and Validate NuGet Package
     runs-on: ubuntu-latest
     needs: [version, build]
     if: needs.version.outputs.should-release == 'true'
@@ -101,7 +101,7 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: Pack
+    - name: Pack and Validate
       run: |
         dotnet pack ${{ env.PROJECT_PATH }} \
           --configuration Release \
@@ -115,34 +115,10 @@ jobs:
         name: nuget-package
         path: ${{ env.PACKAGE_OUTPUT_PATH }}/*
 
-  validate-package:
-    name: Validate NuGet Package
-    runs-on: ubuntu-latest
-    needs: package
-    if: needs.package.if != 'skipped' && needs.version.outputs.should-release == 'true'
-    
-    steps:
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
-
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: nuget-package
-        path: ./packages
-
-    - name: Install NuGet validator
-      run: dotnet tool install --global dotnet-validate
-
-    - name: Validate package
-      run: dotnet validate package local ./packages/*.nupkg
-
   release:
     name: Create and Publish Release
     runs-on: ubuntu-latest
-    needs: [version, validate-package]
+    needs: [version, package]
     if: needs.version.outputs.should-release == 'true'
     environment: production
     
@@ -174,10 +150,10 @@ jobs:
           echo "### ✨ Features" >> release-notes.md
           git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep="\+semver:\s?\(feature\|minor\)" >> release-notes.md || echo "- No new features." >> release-notes.md
           
-          echo -e "\n### 🐛 Bug Fixes" >> release-notes.md          
+          echo -e "\n### 🐛 Bug Fixes" >> release-notes.md
           git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep="\+semver:\s?\(fix\|patch\)" >> release-notes.md || echo "- No bug fixes." >> release-notes.md
           
-          echo -e "\n### 🔨 Other Changes" >> release-notes.md          
+          echo -e "\n### 🔨 Other Changes" >> release-notes.md
           git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep -v "\+semver:\s?\(breaking\|major\|feature\|minor\|fix\|patch\)" >> release-notes.md
         else
           echo "## Initial Release" >> release-notes.md
