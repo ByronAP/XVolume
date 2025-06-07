@@ -130,13 +130,13 @@ jobs:
           /p:Version=${{ needs.version.outputs.version }}
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: nuget-packages
         path: ${{ env.PACKAGE_OUTPUT_PATH }}/*.nupkg
 
     - name: Upload symbols
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: nuget-symbols
         path: ${{ env.PACKAGE_OUTPUT_PATH }}/*.snupkg
