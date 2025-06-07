@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   # This single job definition will expand into three parallel jobs, one for each entry in the matrix.
@@ -30,3 +31,35 @@ jobs:
     uses: ./.github/workflows/test-${{ matrix.name | lower }}.yml
     with:
       runs-on: ${{ matrix.os }}
+
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    # The 'needs: test' ensures this job waits for the entire matrix to complete.
+    needs: test
+    # 'if: always()' ensures this job runs even if some of the test jobs fail.
+    if: always()
+
+    steps:
+      - name: Download all test result artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: test-results
+
+      - name: Summarize test results
+        id: summarize
+        run: |
+          echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          
+          if grep -r -l "outcome=\"Failed\"" test-results; then
+            echo "🔴 Some tests failed. See details below." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # List all failed tests for a clear report
+            grep -r "outcome=\"Failed\"" test-results | sed -e 's/.*testName="\([^"]*\)".*/- ❌ \1/' >> $GITHUB_STEP_SUMMARY
+            
+            # This will make the summary job itself fail, correctly reporting the overall failure.
+            exit 1
+          else
+            echo "✅ All tests passed across all platforms!" >> $GITHUB_STEP_SUMMARY
+          fi
