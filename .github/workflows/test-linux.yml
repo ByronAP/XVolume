@@ -57,7 +57,7 @@ jobs:
      run: dotnet test --configuration Release --no-build --filter "Category=Unit" --logger "trx;LogFileName=linux-unit.trx" --logger "console;verbosity=detailed" --results-directory ./TestResults
 
    - name: Upload Unit Test Results
-     uses: actions/upload-artifact@v3
+     uses: actions/upload-artifact@v4
      if: always()
      with:
        name: test-results-unit-linux
@@ -117,7 +117,7 @@ jobs:
      continue-on-error: true
 
    - name: Upload ALSA Test Results
-     uses: actions/upload-artifact@v3
+     uses: actions/upload-artifact@v4
      if: always()
      with:
        name: test-results-integration-linux-alsa
@@ -176,7 +176,7 @@ jobs:
      continue-on-error: true
 
    - name: Upload PulseAudio Test Results
-     uses: actions/upload-artifact@v3
+     uses: actions/upload-artifact@v4
      if: always()
      with:
        name: test-results-integration-linux-pulseaudio
@@ -231,7 +231,7 @@ jobs:
      continue-on-error: true
 
    - name: Upload PipeWire Test Results
-     uses: actions/upload-artifact@v3
+     uses: actions/upload-artifact@v4
      if: always()
      with:
        name: test-results-integration-linux-pipewire
@@ -278,7 +278,7 @@ jobs:
          --results-directory ./TestResults
 
    - name: Upload Factory Test Results
-     uses: actions/upload-artifact@v3
+     uses: actions/upload-artifact@v4
      if: always()
      with:
        name: test-results-factory-linux
