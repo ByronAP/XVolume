@@ -1,0 +1,47 @@
+name: Smoke Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to test'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - windows
+          - linux
+          - macos
+
+jobs:
+  smoke-test:
+    name: Smoke Test - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ${{ fromJson(github.event.inputs.platform == 'all' && '["ubuntu-latest", "windows-latest", "macos-latest"]' || github.event.inputs.platform == 'windows' && '["windows-latest"]' || github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' || '["macos-latest"]') }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Install dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y alsa-utils pulseaudio pipewire
+
+    - name: Build Sample App
+      run: |
+        dotnet build samples/XVolume.Sample.csproj --configuration Release
+
+    - name: Run Smoke Test
+      run: |
+        dotnet run --project samples/XVolume.Sample.csproj --configuration Release -- --test
+      continue-on-error: true

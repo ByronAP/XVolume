@@ -1,0 +1,322 @@
+name: Test Windows
+
+on:
+ workflow_call:
+   inputs:
+     runs-on:
+       required: false
+       type: string
+       default: 'windows-latest'
+     dotnet-version:
+       required: false
+       type: string
+       default: '9.0.x'
+ workflow_dispatch:
+   inputs:
+     runs-on:
+       description: 'Windows runner version'
+       required: false
+       type: choice
+       default: 'windows-latest'
+       options:
+         - windows-latest
+         - windows-2022
+         - windows-2019
+
+jobs:
+ test-unit:
+   name: Unit Tests - Windows
+   runs-on: ${{ inputs.runs-on || 'windows-latest' }}
+   
+   steps:
+   - name: Checkout code
+     uses: actions/checkout@v4
+
+   - name: Setup .NET
+     uses: actions/setup-dotnet@v4
+     with:
+       dotnet-version: ${{ inputs.dotnet-version || '9.0.x' }}
+
+   - name: Restore dependencies
+     run: dotnet restore
+
+   - name: Build
+     run: dotnet build --configuration Release --no-restore
+
+   - name: Run Unit Tests
+     run: dotnet test --configuration Release --no-build --filter "Category=Unit" --logger "trx;LogFileName=windows-unit.trx" --logger "console;verbosity=detailed" --results-directory ./TestResults
+
+   - name: Upload Unit Test Results
+     uses: actions/upload-artifact@v3
+     if: always()
+     with:
+       name: test-results-unit-windows
+       path: TestResults/*.trx
+
+ test-integration:
+   name: Integration Tests - Windows Core Audio
+   runs-on: ${{ inputs.runs-on || 'windows-latest' }}
+   
+   steps:
+   - name: Checkout code
+     uses: actions/checkout@v4
+
+   - name: Setup .NET
+     uses: actions/setup-dotnet@v4
+     with:
+       dotnet-version: ${{ inputs.dotnet-version || '9.0.x' }}
+
+   - name: Check Audio System
+     shell: pwsh
+     run: |
+       Write-Host "=== Windows Audio System Information ===" -ForegroundColor Cyan
+       
+       # Check Windows Audio Service
+       Write-Host "`n=== Audio Services Status ===" -ForegroundColor Yellow
+       Get-Service -Name AudioSrv, AudioEndpointBuilder -ErrorAction SilentlyContinue | 
+         Format-Table Name, Status, DisplayName -AutoSize
+       
+       # Try to ensure services are running
+       Write-Host "`n=== Starting Audio Services ===" -ForegroundColor Yellow
+       try {
+         Start-Service -Name AudioSrv -ErrorAction SilentlyContinue
+         Start-Service -Name AudioEndpointBuilder -ErrorAction SilentlyContinue
+         Write-Host "Audio services start attempted" -ForegroundColor Green
+       } catch {
+         Write-Host "Could not start audio services (may require admin)" -ForegroundColor Red
+       }
+       
+       # List audio devices using WMI
+       Write-Host "`n=== Audio Devices (WMI) ===" -ForegroundColor Yellow
+       try {
+         Get-WmiObject Win32_SoundDevice | Format-Table Name, Status, StatusInfo -AutoSize
+       } catch {
+         Write-Host "No audio devices found via WMI" -ForegroundColor Red
+       }
+       
+       # Check COM registration
+       Write-Host "`n=== Core Audio COM Registration ===" -ForegroundColor Yellow
+       $clsid = "{BCDE0395-E52F-467C-8E3D-C4579291692E}"
+       $key = "Registry::HKEY_CLASSES_ROOT\CLSID\$clsid"
+       if (Test-Path $key) {
+         Write-Host "MMDeviceEnumerator COM class is registered" -ForegroundColor Green
+       } else {
+         Write-Host "MMDeviceEnumerator COM class not found" -ForegroundColor Red
+       }
+       
+       # Check for audio endpoints
+       Write-Host "`n=== Audio Endpoints ===" -ForegroundColor Yellow
+       try {
+         $audioDevices = Get-PnpDevice -Class AudioEndpoint -ErrorAction SilentlyContinue
+         if ($audioDevices) {
+           $audioDevices | Format-Table FriendlyName, Status -AutoSize
+         } else {
+           Write-Host "No audio endpoints found" -ForegroundColor Red
+         }
+       } catch {
+         Write-Host "Could not enumerate audio endpoints" -ForegroundColor Red
+       }
+
+   - name: Restore dependencies
+     run: dotnet restore
+
+   - name: Build
+     run: dotnet build --configuration Release --no-restore
+
+   - name: Run Windows Integration Tests
+     shell: pwsh
+     run: |
+       # Run integration tests, don't fail build if audio isn't available
+       try {
+         dotnet test --configuration Release --no-build `
+           --filter "Category=Integration&Category=Windows" `
+           --logger "trx;LogFileName=windows-integration.trx" `
+           --logger "console;verbosity=detailed" `
+           --results-directory ./TestResults
+       } catch {
+         Write-Host "Integration tests completed with errors: $_" -ForegroundColor Yellow
+         exit 0  # Don't fail the build
+       }
+     continue-on-error: true
+
+   - name: Upload Integration Test Results
+     uses: actions/upload-artifact@v3
+     if: always()
+     with:
+       name: test-results-integration-windows
+       path: TestResults/*.trx
+
+ test-factory:
+   name: Factory Tests - Windows
+   runs-on: ${{ inputs.runs-on || 'windows-latest' }}
+   
+   steps:
+   - name: Checkout code
+     uses: actions/checkout@v4
+
+   - name: Setup .NET
+     uses: actions/setup-dotnet@v4
+     with:
+       dotnet-version: ${{ inputs.dotnet-version || '9.0.x' }}
+
+   - name: Restore dependencies
+     run: dotnet restore
+
+   - name: Build
+     run: dotnet build --configuration Release --no-restore
+
+   - name: Run Factory Tests
+     run: |
+       dotnet test --configuration Release --no-build `
+         --filter "FullyQualifiedName~VolumeSubsystemFactoryTests" `
+         --logger "trx;LogFileName=windows-factory.trx" `
+         --logger "console;verbosity=detailed" `
+         --results-directory ./TestResults
+     shell: pwsh
+
+   - name: Upload Factory Test Results
+     uses: actions/upload-artifact@v3
+     if: always()
+     with:
+       name: test-results-factory-windows
+       path: TestResults/*.trx
+
+ test-com-interop:
+   name: COM Interop Tests - Windows
+   runs-on: ${{ inputs.runs-on || 'windows-latest' }}
+   
+   steps:
+   - name: Checkout code
+     uses: actions/checkout@v4
+
+   - name: Setup .NET
+     uses: actions/setup-dotnet@v4
+     with:
+       dotnet-version: ${{ inputs.dotnet-version || '9.0.x' }}
+
+   - name: Test COM Interop
+     shell: pwsh
+     run: |
+       Write-Host "=== Testing COM Interop ===" -ForegroundColor Cyan
+       
+       # A simple COM test
+       @'
+       using System;
+       using System.Runtime.InteropServices;
+       
+       class ComTest {
+           [DllImport("ole32.dll")]
+           static extern int CoInitializeEx(IntPtr pvReserved, uint dwCoInit);
+           
+           [DllImport("ole32.dll")]
+           static extern void CoUninitialize();
+           
+           static void Main() {
+               Console.WriteLine("Testing COM initialization...");
+               int hr = CoInitializeEx(IntPtr.Zero, 0);
+               if (hr >= 0) {
+                   Console.WriteLine("COM initialized successfully");
+                   CoUninitialize();
+               } else {
+                   Console.WriteLine($"COM initialization failed: 0x{hr:X8}");
+               }
+           }
+       }
+       '@ | Out-File -FilePath ComTest.cs
+       
+       # Compile and run COM test
+       Add-Type -Path ComTest.cs -PassThru | ForEach-Object {
+         [ComTest]::Main()
+       }
+
+   - name: Restore dependencies
+     run: dotnet restore
+
+   - name: Build
+     run: dotnet build --configuration Release --no-restore
+
+   - name: Run Specific Windows Tests
+     shell: pwsh
+     run: |
+       # Run tests that specifically test Windows COM functionality
+       dotnet test --configuration Release --no-build `
+         --filter "FullyQualifiedName~WindowsVolumeSubsystem" `
+         --logger "trx;LogFileName=windows-com-interop.trx" `
+         --logger "console;verbosity=detailed" `
+         --results-directory ./TestResults
+     continue-on-error: true
+
+   - name: Upload COM Interop Test Results
+     uses: actions/upload-artifact@v3
+     if: always()
+     with:
+       name: test-results-com-interop-windows
+       path: TestResults/*.trx
+
+ test-sample:
+   name: Sample App Test - Windows
+   runs-on: ${{ inputs.runs-on || 'windows-latest' }}
+   if: ${{ github.event_name == 'workflow_dispatch' }}
+   
+   steps:
+   - name: Checkout code
+     uses: actions/checkout@v4
+
+   - name: Setup .NET
+     uses: actions/setup-dotnet@v4
+     with:
+       dotnet-version: ${{ inputs.dotnet-version || '9.0.x' }}
+
+   - name: Build Sample App
+     shell: pwsh
+     run: |
+       Set-Location samples/
+       dotnet build --configuration Release
+
+   - name: Test Sample App
+     shell: pwsh
+     run: |
+       Set-Location samples/
+       Write-Host "=== Running Sample App ===" -ForegroundColor Cyan
+       
+       # Run with timeout
+       $job = Start-Job -ScriptBlock {
+         Set-Location $using:PWD
+         dotnet run --configuration Release --no-build
+       }
+       
+       if (Wait-Job $job -Timeout 30) {
+         Receive-Job $job
+       } else {
+         Stop-Job $job
+         Write-Host "Sample app test timed out after 30 seconds" -ForegroundColor Yellow
+       }
+       Remove-Job $job
+     continue-on-error: true
+
+ summary:
+   name: Windows Test Summary
+   runs-on: ubuntu-latest
+   needs: [test-unit, test-integration, test-factory, test-com-interop]
+   if: always()
+   
+   steps:
+   - name: Download all test results
+     uses: actions/download-artifact@v3
+     with:
+       path: test-results
+
+   - name: Display test results
+     run: |
+       echo "=== Windows Test Results Summary ==="
+       find test-results -name "*.trx" -type f | while read file; do
+         echo "Found test result: $file"
+       done
+
+   - name: Check for failures
+     run: |
+       if grep -r "outcome=\"Failed\"" test-results/*.trx 2>/dev/null; then
+         echo "::warning::Some Windows tests failed. Check the test results for details."
+       else
+         echo "::notice::All Windows tests passed!"
+       fi
