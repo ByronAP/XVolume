@@ -50,13 +50,13 @@ jobs:
         fetch-depth: 0
 
     - name: Install GitVersion
-      uses: gittools/actions/gitversion/setup@v0
+      uses: gittools/actions/gitversion/setup@v3
       with:
         versionSpec: '5.x'
 
     - name: Determine Version
       id: gitversion
-      uses: gittools/actions/gitversion/execute@v0
+      uses: gittools/actions/gitversion/execute@v3
       with:
         useConfigFile: true
 
@@ -130,13 +130,13 @@ jobs:
           /p:Version=${{ needs.version.outputs.version }}
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: nuget-packages
         path: ${{ env.PACKAGE_OUTPUT_PATH }}/*.nupkg
 
     - name: Upload symbols
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: nuget-symbols
         path: ${{ env.PACKAGE_OUTPUT_PATH }}/*.snupkg
@@ -220,7 +220,7 @@ jobs:
         echo '```' >> release-notes.md
 
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ needs.version.outputs.version }}
         name: XVolume v${{ needs.version.outputs.version }}

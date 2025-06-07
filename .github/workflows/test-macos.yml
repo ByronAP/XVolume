@@ -47,7 +47,7 @@ jobs:
      run: dotnet test --configuration Release --no-build --filter "Category=Unit" --logger "trx;LogFileName=macos-unit.trx" --logger "console;verbosity=detailed" --results-directory ./TestResults
 
    - name: Upload Unit Test Results
-     uses: actions/upload-artifact@v3
+     uses: actions/upload-artifact@v4
      if: always()
      with:
        name: test-results-unit-macos
@@ -101,7 +101,7 @@ jobs:
      continue-on-error: true
 
    - name: Upload Integration Test Results
-     uses: actions/upload-artifact@v3
+     uses: actions/upload-artifact@v4
      if: always()
      with:
        name: test-results-integration-macos
@@ -135,7 +135,7 @@ jobs:
          --results-directory ./TestResults
 
    - name: Upload Factory Test Results
-     uses: actions/upload-artifact@v3
+     uses: actions/upload-artifact@v4
      if: always()
      with:
        name: test-results-factory-macos
