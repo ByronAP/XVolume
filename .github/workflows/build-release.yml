@@ -119,7 +119,7 @@ jobs:
     name: Validate NuGet Package
     runs-on: ubuntu-latest
     needs: package
-    if: needs.package.outputs.should-release == 'true'
+    if: needs.package.if != 'skipped' && needs.version.outputs.should-release == 'true'
     
     steps:
     - name: Setup .NET
@@ -164,25 +164,25 @@ jobs:
         VERSION=${{ needs.version.outputs.version }}
         echo "# Release Notes for v$VERSION" > release-notes.md
         echo "" >> release-notes.md
-        
+
         # Get commits since last tag
         if git describe --tags --abbrev=0 HEAD^ 2>/dev/null; then
           LAST_TAG=$(git describe --tags --abbrev=0 HEAD^)
           echo "## Changes since $LAST_TAG" >> release-notes.md
-          
+
           # Grep for +semver messages to match GitVersion.yml
           echo "### ✨ Features" >> release-notes.md
           git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep="\+semver:\s?\(feature\|minor\)" >> release-notes.md || echo "- No new features." >> release-notes.md
           
-          echo -e "\n### 🐛 Bug Fixes" >> release-notes.md
+          echo -e "\n### 🐛 Bug Fixes" >> release-notes.md          
           git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep="\+semver:\s?\(fix\|patch\)" >> release-notes.md || echo "- No bug fixes." >> release-notes.md
           
-          echo -e "\n### 🔨 Other Changes" >> release-notes.md
+          echo -e "\n### 🔨 Other Changes" >> release-notes.md          
           git log --pretty=format:"- %s (%an)" $LAST_TAG..HEAD --grep -v "\+semver:\s?\(breaking\|major\|feature\|minor\|fix\|patch\)" >> release-notes.md
         else
           echo "## Initial Release" >> release-notes.md
         fi
-        
+
         echo "" >> release-notes.md
         echo "## Installation" >> release-notes.md
         echo '```bash' >> release-notes.md
