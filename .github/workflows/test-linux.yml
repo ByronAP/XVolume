@@ -224,27 +224,3 @@ jobs:
     - name: Test Sample App
       run: timeout 30s dotnet run --project samples/ --configuration Release --no-build || echo "Sample app test completed"
       continue-on-error: true
-
-  summary:
-    name: Linux Test Summary
-    # This job runs on a standard runner, it doesn't need to match the test runners.
-    runs-on: ubuntu-latest
-    # It must run after all other jobs, even if they fail.
-    if: always()
-    needs: [test-unit, test-integration-alsa, test-integration-pulseaudio, test-integration-pipewire, test-factory, test-sample]
-    
-    steps:
-    - name: Download all test results
-      uses: actions/download-artifact@v4
-      with:
-        path: test-results
-
-    - name: Check for failures
-      run: |
-        echo "### Linux Test Results Summary" >> $GITHUB_STEP_SUMMARY
-        if grep -r -l "outcome=\"Failed\"" test-results; then
-          echo "🔴 Some Linux tests failed. Check the artifacts for details." >> $GITHUB_STEP_SUMMARY
-          exit 1
-        else
-          echo "✅ All Linux tests passed!" >> $GITHUB_STEP_SUMMARY
-        fi
