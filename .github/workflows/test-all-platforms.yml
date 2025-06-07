@@ -8,20 +8,18 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-matrix:
-    name: Test Matrix
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-    - id: set-matrix
-      run: |
-        echo "matrix={\"include\":[{\"os\":\"ubuntu-latest\",\"name\":\"Linux\"},{\"os\":\"windows-latest\",\"name\":\"Windows\"},{\"os\":\"macos-latest\",\"name\":\"macOS\"}]}" >> $GITHUB_OUTPUT
-
   test:
-    needs: test-matrix
     strategy:
-      matrix: ${{ fromJson(needs.test-matrix.outputs.matrix) }}
+      fail-fast: false # Don't cancel other OS tests if one fails
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux
+          - os: windows-latest
+            name: Windows
+          - os: macos-latest
+            name: macOS
+
     uses: ./.github/workflows/test-${{ matrix.name | lower }}.yml
     with:
       runs-on: ${{ matrix.os }}
