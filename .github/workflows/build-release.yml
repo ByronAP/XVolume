@@ -220,7 +220,7 @@ jobs:
         echo '```' >> release-notes.md
 
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ needs.version.outputs.version }}
         name: XVolume v${{ needs.version.outputs.version }}
