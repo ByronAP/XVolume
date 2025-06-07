@@ -14,6 +14,9 @@ on:
           - linux
           - macos
 
+permissions:
+  contents: read
+
 jobs:
   smoke-test:
     name: Smoke Test - ${{ matrix.os }}
